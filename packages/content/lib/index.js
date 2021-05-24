@@ -254,7 +254,23 @@ module.exports = async function (moduleOptions) {
     fileName: 'content/nuxt-content.js',
     src: join(__dirname, '../templates/nuxt-content.js')
   })
-  if (options.watch && options.liveEdit) {
+
+  // if (options.github) { // TODO
+    this.addTemplate({
+      fileName: 'content/github.js',
+      src: join(__dirname, '../templates/github.js'),
+      options: { // TODO
+        appId: this.options.publicRuntimeConfig.appId,
+        installationId: this.options.publicRuntimeConfig.installationId,
+        privateKey: this.options.publicRuntimeConfig.privateKey,
+        owner: this.options.publicRuntimeConfig.owner,
+        repo: this.options.publicRuntimeConfig.repo,
+        branch: this.options.publicRuntimeConfig.branch,
+      }
+    })
+  // }
+
+  // if (options.watch && options.liveEdit) {
     // Add dev client plugin component
     this.addTemplate({
       fileName: 'content/nuxt-content.dev.vue',
@@ -269,7 +285,7 @@ module.exports = async function (moduleOptions) {
       fileName: 'content/editor.vue',
       src: join(__dirname, '..', 'templates', 'editor.vue')
     })
-  }
+  //}
 
   function isUrl (string) {
     try {

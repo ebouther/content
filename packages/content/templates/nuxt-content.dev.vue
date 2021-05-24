@@ -1,14 +1,12 @@
 <template>
   <div :class="['nuxt-content-container', { 'is-editing': isEditing }]">
-    <client-only>
-      <editor
-        v-show="isEditing"
-        v-model="file"
-        :is-editing="isEditing"
-        class="nuxt-content-editor"
-        @endEdit="toggleEdit"
-      />
-    </client-only>
+    <editor
+      v-show="isEditing"
+      v-model="file"
+      :is-editing="isEditing"
+      class="nuxt-content-editor"
+      @endEdit="toggleEdit"
+    />
     <nuxt-content-dev
       v-show="!isEditing"
       :id="id"
@@ -21,6 +19,7 @@
 </template>
 
 <script>
+import github from './github'
 import NuxtContent from './nuxt-content'
 import Editor from '<%= options.editor %>'
 
@@ -42,6 +41,9 @@ export default {
   computed: {
     fileUrl () {
       return `/<%= options.apiPrefix %>${this.document.path}${this.document.extension}`
+    },
+    filePath () {
+      return `content${this.document.path}${this.document.extension}`
     }
   },
   mounted () {
@@ -80,10 +82,14 @@ export default {
       this.isEditing = true
     },
     async fetchFile () {
-      this.file = await fetch(this.fileUrl).then(res => res.text())
+      //this.file = await fetch(this.fileUrl).then(res => res.text())
+      this.file = await github.fetchFile(this.filePath);
+      console.log('FETCH FILE', this.filePath, this.file)
     },
     async saveFile () {
-      await fetch(this.fileUrl, { method: 'PUT', body: JSON.stringify({ file: this.file }) }).then(res => res.json())
+      //await fetch(this.fileUrl, { method: 'PUT', body: JSON.stringify({ file: this.file }) }).then(res => res.json())
+      console.log('SAVE FILE', this.document.path, this.document.extension)
+      await github.saveFile({filePath: this.filePath, content: this.file})
     },
     waitFor (ms) {
       return new Promise(resolve => setTimeout(resolve, ms))
