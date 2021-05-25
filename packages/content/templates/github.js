@@ -19,6 +19,8 @@ console.log(octokit)
 
 
 const fetchFile = async (filePath) => {
+  // disable response cache
+  octokit.rest.repos.getContent.endpoint.defaults({ headers: { 'Cache-Control': 'no-cache' } });
 
   const { data: { content, encoding } } = await octokit.rest.repos.getContent({
     owner,
@@ -26,6 +28,7 @@ const fetchFile = async (filePath) => {
     path: filePath,
     ref: `heads/${branch}`,
   });
+
   return (new Buffer(content, encoding)).toString('utf-8');
 }
 
