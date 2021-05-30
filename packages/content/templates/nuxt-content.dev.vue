@@ -1,5 +1,15 @@
 <template>
   <div :class="['nuxt-content-container', { 'is-editing': isEditing }]">
+    <label for="author">author: </label>
+    <input
+      id="author"
+      v-model="author"
+      type="text"
+      name="name"
+      value="admin"
+    >
+    <br/>
+    <br/>
     <editor
       v-show="isEditing"
       v-model="file"
@@ -15,6 +25,8 @@
       :document="document"
       @dblclick="toggleEdit"
     />
+    <br/>
+    <button v-on:click="saveFile">Save</button>
   </div>
 </template>
 
@@ -35,6 +47,7 @@ export default {
       classes: [],
       isEditing: false,
       file: null,
+      author: null,
       id: null
     }
   },
@@ -72,7 +85,7 @@ export default {
   methods: {
     async toggleEdit () {
       if (this.isEditing) {
-        await this.saveFile()
+        await this.updateFile()
         this.isEditing = false
         return
       }
@@ -82,14 +95,36 @@ export default {
       this.isEditing = true
     },
     async fetchFile () {
-      //this.file = await fetch(this.fileUrl).then(res => res.text())
-      this.file = await github.fetchFile(this.filePath);
       console.log('FETCH FILE', this.filePath, this.file)
+
+      ;({ editBranch: this.editBranch, content: this.file }  = await github.fetchFile({filePath: this.filePath, author: this.author}))
+
+      console.log('EDIT BRANCH : ', this.editBranch)
+    },
+    async updateFile() {
+      this.ongoingUpdate = true
+      console.log('UPDATE FILE', this.document.path, this.document.extension)
+
+      ;({ editBranch: this.editBranch } = await github.updateFile({
+        filePath: this.filePath,
+        content: this.file,
+        author: this.author,
+        editBranch: this.editBranch
+      }))
+
+      console.log('EDIT BRANCH : ', this.editBranch)
+
+      this.ongoingUpdate = false;
     },
     async saveFile () {
-      //await fetch(this.fileUrl, { method: 'PUT', body: JSON.stringify({ file: this.file }) }).then(res => res.json())
-      console.log('SAVE FILE', this.document.path, this.document.extension)
-      await github.saveFile({filePath: this.filePath, content: this.file})
+
+      if (this.ongoingUpdate) {
+        console.warn('Wait for file update to be done.')
+        return;
+      }
+
+      console.log('SAVE FILE', this.filePath)
+      await github.saveFile({ filePath: this.filePath, editBranch: this.editBranch })
     },
     waitFor (ms) {
       return new Promise(resolve => setTimeout(resolve, ms))

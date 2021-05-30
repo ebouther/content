@@ -183,13 +183,14 @@ module.exports = async function (moduleOptions) {
         renderContext.nuxt.content = { dbHash }
       })
     }
+
     // Write db.json
     this.nuxt.hook('generate:distRemoved', async () => {
       const dir = resolve(this.options.buildDir, 'dist', 'client', 'content')
 
       await mkdirp(dir)
       await fs.writeFile(
-        join(dir, `db-${dbHash}.json`),
+        join(dir, 'db.json'), // `db-${dbHash}.json`),
         database.db.serialize(),
         'utf-8'
       )
@@ -256,6 +257,8 @@ module.exports = async function (moduleOptions) {
   })
 
   // if (options.github) { // TODO
+
+
     this.addTemplate({
       fileName: 'content/github.js',
       src: join(__dirname, '../templates/github.js'),
@@ -266,6 +269,12 @@ module.exports = async function (moduleOptions) {
         owner: this.options.publicRuntimeConfig.owner,
         repo: this.options.publicRuntimeConfig.repo,
         branch: this.options.publicRuntimeConfig.branch,
+
+        dbPath: isUrl(this.options.build.publicPath)
+          ? `${this.options.build.publicPath}content`
+          : `${this.options.router.base}${this.options.build.publicPath}content`,
+        dbHash: this.options.publicRuntimeConfig.content?.dbHash,
+
       }
     })
   // }

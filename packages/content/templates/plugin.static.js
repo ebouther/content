@@ -32,7 +32,7 @@ export default (ctx, inject) => {
     }
     mock.fetch = async () => {
       const database = await fetch(
-        `<%= options.dbPath %>/db-${dbHash}.json`
+        `<%= options.dbPath %>/db.json` //`<%= options.dbPath %>/db-${dbHash}.json`
       ).then(res => res.json())
       $$content = (await loadContent()).default(database)
       let query = $$content(...contentArgs)

@@ -1,10 +1,13 @@
 const { Octokit, App, Action } = require("@octokit/rest");
 const { createAppAuth } = require("@octokit/auth-app");
 const { uuid } = require('uuidv4');
+const { basename } = require('path');
 
 const owner = '<%= options.owner %>';
 const repo = '<%= options.repo %>';
 const branch = '<%= options.branch %>';
+
+const dbPath = '<%= options.dbPath %>';
 
 const octokit = new Octokit({
   authStrategy: createAppAuth,
@@ -15,57 +18,107 @@ const octokit = new Octokit({
   },
 });
 
-console.log(octokit)
+console.log('OCTO :: ', octokit);
 
+/**
+ * Get latest version timestamp of @filePath from database json
+ */
+const latestVersion = async (filePath) => {
+  const db = JSON.parse(await (await fetch(`${dbPath}/db.json`.replace('\/\/', '\/'))).text());
 
-const fetchFile = async (filePath) => {
+  const slug = basename(filePath).replace(/\.[^/.]+$/, '')
+
+  return db._collections
+    .find(c => c.name === 'items')
+    ._data
+    .find(i => i.slug === slug) // TODO: dir + slug check?
+    .updatedAt
+}
+
+const branchExists = async (branchNameRegex) => {
+
+  const { data: branches } = await octokit.rest.repos.listBranches({
+    owner,
+    repo,
+  });
+  console.log('BRANCHES : ', branches);
+
+  return branches.find( b => b.name.match(branchNameRegex) );
+}
+
+/**
+ * Fetch @filePath content from github repository
+ *
+ * @param {String} filePath
+ * @param {String} author
+ * @returns {String} File Content
+ */
+const fetchFile = async ({ filePath, author }) => {
+  let editBranch = branch;
+
   // disable response cache
   octokit.rest.repos.getContent.endpoint.defaults({ headers: { 'Cache-Control': 'no-cache' } });
+
+
+  const userBranch = await branchExists(
+    new RegExp(`content/${author}/${Buffer.from(filePath).toString('base64')}/` + '([0-9]+)')
+  );
+  if (userBranch) {
+    editBranch = userBranch.name
+    console.log('FETCHING CONTENT FROM USER BRANCH : ', userBranch.name)
+  }
+
 
   const { data: { content, encoding } } = await octokit.rest.repos.getContent({
     owner,
     repo,
     path: filePath,
-    ref: `heads/${branch}`,
+    ref: `heads/${editBranch}`,
   });
 
-  return (new Buffer(content, encoding)).toString('utf-8');
+  return {
+    editBranch,
+    content: (new Buffer(content, encoding)).toString('utf-8')
+  };
 }
 
 /* Github update of @filePath with @content */
-const saveFile = async ({filePath, content}) => {
+const updateFile = async ({filePath, content, author, editBranch}) => {
 
-  console.log(await octokit.rest.apps.getAuthenticated())
+  console.log(await octokit.rest.apps.getAuthenticated());
 
   const { data: { object: { sha: currCommitSha }} } = await octokit.git.getRef({
     owner,
     repo,
-    ref: `heads/${branch}`,
+    ref: `heads/${editBranch}`,
   });
   console.log('commit sha: ', currCommitSha);
-
 
   const { data: { tree: { sha: treeSha } } } = await octokit.git.getCommit({
     owner,
     repo,
     commit_sha: currCommitSha,
-  })
+  });
   console.log('tree sha: ', treeSha);
 
-
-  const newBranch = `content/${uuid()}`;
-
   /* Create Branch */
-  const ref = await octokit.rest.git.createRef({
-    owner,
-    repo,
-    ref: `refs/heads/${newBranch}`,
-    sha: currCommitSha,
-  });
+  if (editBranch === branch) {
+
+    const newBranch = `content/${author}/${Buffer.from(filePath).toString('base64')}/${Date.now()}`
+
+    const ref = await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${newBranch}`,
+      sha: currCommitSha,
+    });
+
+    editBranch = newBranch;
+  }
+
 
 
   /* Create Blob */
-  //const content = "OCTO FILE!!!"; // await getFileAsUTF8(filePath)
   const { data: { sha: blobSha, url } } = await octokit.git.createBlob({
     owner,
     repo,
@@ -81,7 +134,7 @@ const saveFile = async ({filePath, content}) => {
     type: `blob`,
     sha: blobSha,
   }));
-  console.log(tree);
+  console.log('tree: ', tree);
 
   const { data: { sha: newTreeSha } } = await octokit.git.createTree({
     owner,
@@ -107,46 +160,39 @@ const saveFile = async ({filePath, content}) => {
   const updateRef = await octokit.git.updateRef({
     owner,
     repo,
-    ref: `heads/${newBranch}`,
+    ref: `heads/${editBranch}`,
     sha: newCommit.sha,
   })
 
   console.log('UPDATE REF :', updateRef);
 
-  /* Create Pull Request */
-  // const pr = await octokit.rest.pulls.create({
-  //   title: filePath + ' update',
-  //   owner,
-  //   repo,
-  //   head: newBranch,
-  //   base: branch,
-  // });
+  return { editBranch };
+};
 
-  // console.log('PULL REQUEST : ', pr);
+const saveFile = async ({ filePath, editBranch }) => {
 
-  // // Wait for mergeable state to be known
-  // if (pr.mergeable_state === "unknown") {
-  //   
-  // }
+  const latestFileVersion = await latestVersion(filePath);
+  console.log('LATEST FILE CHANGES : ', latestFileVersion);
 
-  // if (!pr.mergeable) {
-  //   console.log('Merge conflict - Please merge the Pull Request manually.')
-  //   return;
-  // }
+  if (!editBranch || editBranch === branch) {
+    console.warn('Please update file content before saving.')
+    return;
+  }
 
-  // const merge = await octokit.rest.pulls.merge({
-  //   owner,
-  //   repo,
-  //   pull_number: pr.number,
-  // });
+  const [, editVersion] = editBranch.match(new RegExp(`content/.*/.*/` + '([0-9]+)'))
+  console.log('EDIT VERSION : ', editVersion, new Date(editVersion * 1000));
 
-  // console.log('PR Merged : ', merge);
+
+  if (latestFileVersion >= new Date(editVersion * 1000)) {
+    console.warn('File has been updated by ... ');
+    return ;
+  }
 
 
   const merge = await octokit.rest.repos.merge({
     owner,
     repo,
-    head: newBranch,
+    head: editBranch,
     base: branch,
   });
 
@@ -154,12 +200,11 @@ const saveFile = async ({filePath, content}) => {
     console.log('Merge conflict')
   }
 
-  console.log ('MERGE : ', merge);
-
-  // TODO: deletePR && deleteRef
+  console.log ('MERGED : ', merge);
 };
 
 export default {
+  fetchFile,
+  updateFile,
   saveFile,
-  fetchFile
-}
+};
