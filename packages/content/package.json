@@ -52,7 +52,6 @@
     "remark-squeeze-paragraphs": "^4.0.0",
     "unified": "^9.2.1",
     "unist-builder": "^2.0.3",
-    "uuidv4": "^6.2.8",
     "ws": "^7.4.3",
     "xml2js": "^0.4.23"
   },
