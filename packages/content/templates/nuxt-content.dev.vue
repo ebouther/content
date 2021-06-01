@@ -1,6 +1,7 @@
 <template>
   <div>
 
+    <br/>
     <label for="author">author: </label>
     <input
       id="author"
@@ -9,7 +10,6 @@
       name="name"
       value="admin"
     >
-    <br/>
     <br/>
 
     <div :class="['nuxt-content-container', { 'is-editing': isEditing }]">
@@ -28,9 +28,9 @@
         :document="document"
         @dblclick="toggleEdit"
       />
-      <br/>
-      <button v-on:click="saveFile">Save</button>
     </div>
+    <br/>
+    <button v-on:click="publishChanges">Publish</button>
   </div>
 </template>
 
@@ -99,15 +99,13 @@ export default {
       this.isEditing = true
     },
     async fetchFile () {
-      console.log('FETCH FILE', this.filePath, this.file)
+      console.log('[-] Fetching author changes', this.filePath)
 
       ;({ editBranch: this.editBranch, content: this.file }  = await github.fetchFile({filePath: this.filePath, author: this.author}))
-
-      console.log('EDIT BRANCH : ', this.editBranch)
     },
     async editFile() {
       this.ongoingUpdate = true
-      console.log('UPDATE FILE', this.document.path, this.document.extension)
+      console.log('[-] Editing File', this.filePath)
 
       ;({ editBranch: this.editBranch } = await github.editFile({
         filePath: this.filePath,
@@ -116,18 +114,16 @@ export default {
         editBranch: this.editBranch
       }))
 
-      console.log('EDIT BRANCH : ', this.editBranch)
-
       this.ongoingUpdate = false;
     },
     async publishChanges () {
 
       if (this.ongoingUpdate) {
-        console.warn('Wait for file update to be done.')
-        return;
+        console.warn('[-] Wait for edit to be saved.')
+        return
       }
 
-      console.log('PUBLISH CHANGES', this.filePath)
+      console.log('[-] Publishing changes ', this.filePath)
       await github.publishChanges({ filePath: this.filePath, editBranch: this.editBranch })
     },
     waitFor (ms) {
