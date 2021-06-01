@@ -218,7 +218,7 @@ const publishChanges = async ({ filePath, editBranch }) => {
   await octokit.rest.git.deleteRef({
     owner,
     repo,
-    ref: `refs/heads/${editBranch}`,
+    ref: `heads/${editBranch}`,
   });
 };
 
